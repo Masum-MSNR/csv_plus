@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/csv-plus/csv_plus/main/assets/csv_plus_icon.png" width="160" alt="csv_plus logo" />
+  <img src="https://raw.githubusercontent.com/Masum-MSNR/csv_plus/main/assets/csv_plus_icon.png" width="160" alt="csv_plus logo" />
 </p>
 
 <h1 align="center">csv_plus</h1>
@@ -225,20 +225,7 @@ final pipeline = adapter.fuse(utf8);
 
 ---
 
-## Architecture
-
-```
-lib/
-  csv_plus.dart           ← single import for everything
-  core.dart               ← CsvConfig, QuoteMode, exceptions
-  codec.dart              ← CsvCodec, CsvCodecAdapter
-  encoder.dart            ← FastEncoder (batch), CsvEncoder (streaming)
-  decoder.dart            ← FastDecoder (batch), CsvDecoder (streaming)
-  table.dart              ← CsvTable, CsvRow, CsvColumn, CsvSchema
-  query.dart              ← Filtering & sorting extensions
-  transform.dart          ← Column manipulation & aggregation
-  io.dart                 ← CsvFile (dart:io only)
-```
+## Modular Imports
 
 Import everything with one line, or pick only what you need:
 
@@ -264,28 +251,22 @@ import 'package:csv_plus/io.dart';            // File I/O (dart:io)
 
 ---
 
+## Additional Information
+
+- **Documentation**: [API Reference](https://pub.dev/documentation/csv_plus/latest/)
+- **Issues**: [Report a bug](https://github.com/Masum-MSNR/csv_plus/issues)
+- **Changelog**: See [CHANGELOG.md](CHANGELOG.md) for version history
+
+## Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
 ## License
 
-```
-MIT License
+MIT License — see [LICENSE](LICENSE) for details.
 
-Copyright (c) 2025 csv_plus contributors
+---
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/Masum-MSNR">Masum</a>
+</p>
