@@ -97,6 +97,7 @@ class FastDecoder {
           cursor++;
           final start = cursor;
           List<int>? escapePositions;
+          var closed = false;
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == escapeCode &&
@@ -106,12 +107,14 @@ class FastDecoder {
               cursor += 2;
             } else if (c == quoteCode) {
               cursor++;
+              closed = true;
               break;
             } else {
               cursor++;
             }
           }
-          String value = input.substring(start, cursor - 1);
+          String value = input.substring(
+              start, closed ? cursor - 1 : cursor);
           if (escapePositions != null) {
             for (var i = escapePositions.length - 1; i >= 0; i--) {
               value = value.replaceRange(
@@ -249,12 +252,39 @@ class FastDecoder {
             }
           }
 
-          final numStr = input.substring(start, cursor);
+          // Verify the field ends at a boundary (delimiter/CR/LF/EOF)
+          final atBoundary = cursor >= len ||
+              (bytes[cursor] <= _cr &&
+                  (bytes[cursor] == _cr || bytes[cursor] == _lf)) ||
+              (singleCharDelim
+                  ? bytes[cursor] == firstDelim
+                  : _matchDelim(
+                      bytes, cursor, delimBytes, delimLen, len));
+
           dynamic cell;
-          if (isDouble) {
-            cell = double.tryParse(numStr) ?? numStr;
+          if (atBoundary) {
+            final numStr = input.substring(start, cursor);
+            if (isDouble) {
+              cell = double.tryParse(numStr) ?? numStr;
+            } else {
+              cell = int.tryParse(numStr) ?? numStr;
+            }
           } else {
-            cell = int.tryParse(numStr) ?? numStr;
+            // Non-numeric chars follow — rescan as unquoted string
+            while (cursor < len) {
+              final c = bytes[cursor];
+              if (c == firstDelim) {
+                if (singleCharDelim ||
+                    _matchDelim(
+                        bytes, cursor, delimBytes, delimLen, len)) {
+                  break;
+                }
+              } else if (c <= _cr && (c == _lf || c == _cr)) {
+                break;
+              }
+              cursor++;
+            }
+            cell = input.substring(start, cursor);
           }
           if (hasTransform) {
             final hdr =
@@ -387,6 +417,7 @@ class FastDecoder {
           cursor++;
           final start = cursor;
           List<int>? escapePositions;
+          var closed = false;
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == escapeCode &&
@@ -396,12 +427,14 @@ class FastDecoder {
               cursor += 2;
             } else if (c == quoteCode) {
               cursor++;
+              closed = true;
               break;
             } else {
               cursor++;
             }
           }
-          String value = input.substring(start, cursor - 1);
+          String value = input.substring(
+              start, closed ? cursor - 1 : cursor);
           if (escapePositions != null) {
             for (var i = escapePositions.length - 1; i >= 0; i--) {
               value = value.replaceRange(

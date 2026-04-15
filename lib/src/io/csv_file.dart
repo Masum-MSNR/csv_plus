@@ -97,7 +97,11 @@ class CsvFile {
     CsvConfig config = const CsvConfig(),
   }) async {
     final csv = CsvCodec(config).encode(rows);
-    final prefix = await File(path).exists() ? config.lineDelimiter : '';
-    await File(path).writeAsString('$prefix$csv', mode: FileMode.append);
+    final file = File(path);
+    final prefix =
+        await file.exists() && await file.length() > 0
+            ? config.lineDelimiter
+            : '';
+    await file.writeAsString('$prefix$csv', mode: FileMode.append);
   }
 }

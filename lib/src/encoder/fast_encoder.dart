@@ -143,7 +143,7 @@ class FastEncoder {
           buf.write(str);
         }
       case QuoteMode.necessary:
-        if (cell is! String) {
+        if (cell is num || cell is bool) {
           buf.write(str);
         } else if (_needsQuoting(str, delim, quote)) {
           buf.write(quote);
