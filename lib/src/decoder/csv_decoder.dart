@@ -66,6 +66,7 @@ class _StateMachine {
   var _currentRow = <dynamic>[];
   var _isQuoted = false;
   var _pendingCr = false;
+  var _pendingEscape = false;
   var _bomChecked = false;
   List<String>? _headers;
 
@@ -98,12 +99,12 @@ class _StateMachine {
             _state = _State.quotedField;
             i++;
           } else if (ch == 13) {
-            _emitField();
+            if (_currentRow.isNotEmpty) _emitField();
             _emitRow();
             _pendingCr = true;
             i++;
           } else if (ch == 10) {
-            _emitField();
+            if (_currentRow.isNotEmpty) _emitField();
             _emitRow();
             i++;
           } else if (_isFieldDelimAt(codes, i, len)) {
@@ -144,7 +145,22 @@ class _StateMachine {
           }
 
         case _State.quotedField:
-          if (ch == _escapeCode &&
+          if (_pendingEscape) {
+            _pendingEscape = false;
+            if (ch == _quoteCode) {
+              _buf.writeCharCode(_quoteCode);
+              i++;
+            } else {
+              _buf.writeCharCode(_escapeCode);
+              // Don't advance — reprocess current char
+            }
+          } else if (ch == _escapeCode &&
+              _escapeCode != _quoteCode &&
+              i + 1 >= len) {
+            // Escape at chunk boundary (only when escape != quote)
+            _pendingEscape = true;
+            i++;
+          } else if (ch == _escapeCode &&
               i + 1 < len &&
               codes[i + 1] == _quoteCode) {
             _buf.writeCharCode(_quoteCode);
@@ -183,6 +199,10 @@ class _StateMachine {
   }
 
   void finish() {
+    if (_pendingEscape) {
+      _pendingEscape = false;
+      _buf.writeCharCode(_escapeCode);
+    }
     if (_buf.isNotEmpty ||
         _currentRow.isNotEmpty ||
         _state != _State.fieldStart) {
@@ -210,7 +230,7 @@ class _StateMachine {
     } else if (_dynamicTyping) {
       value = _inferType(raw);
     } else {
-      value = raw.isEmpty ? null : raw;
+      value = raw.isEmpty ? '' : raw;
     }
 
     final transform = config.decoderTransform;
@@ -229,8 +249,7 @@ class _StateMachine {
     final row = _currentRow;
     _currentRow = <dynamic>[];
 
-    if (_skipEmpty &&
-        row.every((c) => c == null || (c is String && c.isEmpty))) {
+    if (_skipEmpty && row.isEmpty) {
       return;
     }
 
