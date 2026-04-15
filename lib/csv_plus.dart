@@ -1,5 +1,10 @@
 /// Complete, high-performance CSV package for Dart.
 ///
+/// This is the main entry point — a single import gives access to
+/// encoding, decoding, table manipulation, querying, and transforms.
+///
+/// ## Quick Start
+///
 /// ```dart
 /// import 'package:csv_plus/csv_plus.dart';
 ///
@@ -16,9 +21,29 @@
 /// print(table.avg('age'));
 /// ```
 ///
-/// For file I/O (dart:io), import separately:
+/// ## Library Modules
+///
+/// For selective imports, use the individual library files:
+///
+/// | Library | Import |
+/// |---------|--------|
+/// | Core config & exceptions | `package:csv_plus/core.dart` |
+/// | Codec facade | `package:csv_plus/codec.dart` |
+/// | Encoders | `package:csv_plus/encoder.dart` |
+/// | Decoders | `package:csv_plus/decoder.dart` |
+/// | Table & schema | `package:csv_plus/table.dart` |
+/// | Filtering & sorting | `package:csv_plus/query.dart` |
+/// | Manipulation & aggregation | `package:csv_plus/transform.dart` |
+/// | File I/O (dart:io) | `package:csv_plus/io.dart` |
+///
+/// ## File I/O
+///
+/// File operations require `dart:io` and must be imported separately:
+///
 /// ```dart
-/// import 'package:csv_plus/src/io/csv_file.dart';
+/// import 'package:csv_plus/io.dart';
+///
+/// final table = await CsvFile.read('data.csv');
 /// ```
 library;
 
@@ -55,4 +80,4 @@ export 'src/query/sorting.dart';
 export 'src/transform/manipulation.dart';
 export 'src/transform/aggregation.dart';
 
-// I/O (dart:io — import separately: `import 'package:csv_plus/src/io/csv_file.dart';`)
+// I/O (dart:io — import separately: `import 'package:csv_plus/io.dart';`)

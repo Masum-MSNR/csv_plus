@@ -8,3 +8,6 @@ pubspec.lock
 
 # Internal docs
 docs/
+
+# Generated API docs
+doc/api/
