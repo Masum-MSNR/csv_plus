@@ -1,3 +1,18 @@
+## 0.0.2
+
+### Documentation
+- Redesigned README with hero layout, badges, feature table, and quick start examples
+- Added 8 mini-library files for dartdoc sidebar navigation (core, codec, encoder, decoder, table, query, transform, io)
+- Enhanced barrel export `lib/csv_plus.dart` with library modules reference
+
+### Meta
+- Added MIT LICENSE file
+- SEO-optimized pubspec description and topics for pub.dev
+- Added CI workflow (analyze, format, test on PRs)
+- Added publish workflow (auto-tag + publish to pub.dev)
+
+---
+
 ## 0.0.1
 
 ### Core
