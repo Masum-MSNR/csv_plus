@@ -1,9 +1,22 @@
 name: csv_plus
-description: >
-  Complete, high-performance CSV package for Dart.
-  Read, write, stream, manipulate, validate — with maximum speed and type safety.
+description: >-
+  Fast, complete CSV parser for Dart. Encode, decode, stream, query, and validate CSV data with automatic type inference and zero dependencies.
 version: 0.0.1
 repository: https://github.com/csv-plus/csv_plus
+homepage: https://github.com/csv-plus/csv_plus
+issue_tracker: https://github.com/csv-plus/csv_plus/issues
+
+topics:
+  - csv
+  - parser
+  - data
+  - serialization
+  - file
+
+# Uncomment after adding the icon image to assets/csv_plus_icon.png:
+# screenshots:
+#   - description: 'csv_plus package icon'
+#     path: assets/csv_plus_icon.png
 
 environment:
   sdk: ^3.5.0
