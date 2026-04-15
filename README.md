@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Masum-MSNR/csv_plus/main/images/csv_plus_icon.png" width="160" alt="csv_plus logo" />
+  <img src="https://raw.githubusercontent.com/Masum-MSNR/csv_plus/main/images/logo.png" width="160" alt="csv_plus logo" />
 </p>
 
 <h1 align="center">csv_plus</h1>
