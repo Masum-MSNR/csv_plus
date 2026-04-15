@@ -1,4 +1,7 @@
 /// Base exception for all CSV operations.
+///
+/// Subclasses: [CsvParseException] (malformed input),
+/// [CsvValidationException] (schema violations).
 class CsvException implements Exception {
   final String message;
 
@@ -9,6 +12,8 @@ class CsvException implements Exception {
 }
 
 /// Thrown when CSV input cannot be parsed.
+///
+/// Includes optional [row], [column], and [offset] to locate the error.
 class CsvParseException extends CsvException {
   final int? row;
   final int? column;
@@ -32,7 +37,10 @@ class CsvParseException extends CsvException {
   }
 }
 
-/// Thrown when CSV data fails schema validation.
+/// Thrown when CSV data fails [CsvSchema] validation.
+///
+/// Contains the [columnName], [rowIndex], offending [value], and
+/// the [constraint] that was violated.
 class CsvValidationException extends CsvException {
   final String columnName;
   final int rowIndex;

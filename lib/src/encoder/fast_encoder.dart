@@ -155,32 +155,6 @@ class FastEncoder {
     }
   }
 
-  static bool _needsQuoting(String value, String delim, String quote) {
-    if (value.isEmpty) return true;
-    final units = value.codeUnits;
-    final vLen = units.length;
-    if (units[0] == 32 || units[vLen - 1] == 32) return true;
-    final delimUnits = delim.codeUnits;
-    final delimFirst = delimUnits[0];
-    final delimLen = delimUnits.length;
-    final quoteCode = quote.codeUnitAt(0);
-    for (var i = 0; i < vLen; i++) {
-      final c = units[i];
-      if (c == 10 || c == 13 || c == quoteCode) return true;
-      if (c == delimFirst) {
-        if (delimLen == 1) return true;
-        if (i + delimLen <= vLen) {
-          var match = true;
-          for (var j = 1; j < delimLen; j++) {
-            if (units[i + j] != delimUnits[j]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) return true;
-        }
-      }
-    }
-    return false;
-  }
+  static bool _needsQuoting(String value, String delim, String quote) =>
+      CsvConfig.needsQuoting(value, delim, quote);
 }

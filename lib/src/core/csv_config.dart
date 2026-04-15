@@ -145,4 +145,36 @@ class CsvConfig {
       encoderTransform: encoderTransform ?? this.encoderTransform,
     );
   }
+
+  /// Whether [value] must be quoted when encoding with this config.
+  ///
+  /// A field needs quoting when it is empty, contains the field delimiter,
+  /// CR, LF, the quote character, or starts/ends with a space.
+  static bool needsQuoting(String value, String delim, String quote) {
+    final units = value.codeUnits;
+    final len = units.length;
+    if (len == 0) return true;
+
+    if (units[0] == 0x20 || units[len - 1] == 0x20) return true;
+
+    final delimUnits = delim.codeUnits;
+    final delimLen = delimUnits.length;
+    final quoteCode = quote.codeUnitAt(0);
+
+    for (var i = 0; i < len; i++) {
+      final ch = units[i];
+      if (ch == 0x0A || ch == 0x0D || ch == quoteCode) return true;
+      if (ch == delimUnits[0] && i + delimLen <= len) {
+        var match = true;
+        for (var d = 1; d < delimLen; d++) {
+          if (units[i + d] != delimUnits[d]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return true;
+      }
+    }
+    return false;
+  }
 }

@@ -140,43 +140,8 @@ class CsvEncoder extends StreamTransformerBase<List<dynamic>, String> {
     }
   }
 
-  /// Check whether [value] must be quoted using codeUnit scanning.
-  ///
-  /// A field needs quoting when it:
-  /// - is empty
-  /// - contains the field delimiter
-  /// - contains CR or LF
-  /// - contains the quote character
-  /// - starts or ends with a space (0x20)
-  static bool _needsQuoting(String value, String delim, String quote) {
-    final units = value.codeUnits;
-    final len = units.length;
-    if (len == 0) return true;
-
-    // Leading/trailing spaces
-    if (units[0] == 0x20 || units[len - 1] == 0x20) return true;
-
-    final delimUnits = delim.codeUnits;
-    final delimLen = delimUnits.length;
-    final quoteUnit = quote.codeUnitAt(0);
-
-    for (var i = 0; i < len; i++) {
-      final ch = units[i];
-      if (ch == 0x0A || ch == 0x0D || ch == quoteUnit) return true; // LF, CR, quote
-      // Check for delimiter match (supports multi-char delimiters)
-      if (ch == delimUnits[0] && i + delimLen <= len) {
-        var match = true;
-        for (var d = 1; d < delimLen; d++) {
-          if (units[i + d] != delimUnits[d]) {
-            match = false;
-            break;
-          }
-        }
-        if (match) return true;
-      }
-    }
-    return false;
-  }
+  static bool _needsQuoting(String value, String delim, String quote) =>
+      CsvConfig.needsQuoting(value, delim, quote);
 }
 
 /// Chunked conversion sink for [CsvEncoder].
