@@ -1,7 +1,11 @@
+import 'codec_adapter.dart';
 import '../core/csv_config.dart';
+import '../decoder/csv_decoder.dart';
 import '../decoder/fast_decoder.dart';
+import '../encoder/csv_encoder.dart';
 import '../encoder/fast_encoder.dart';
 import '../table/csv_row.dart';
+import '../table/csv_table.dart';
 
 const _fastDecoder = FastDecoder();
 const _fastEncoder = FastEncoder();
@@ -80,6 +84,32 @@ class CsvCodec {
   String encodeStrings(List<List<String>> rows) {
     return _fastEncoder.encodeStrings(rows, config);
   }
+
+  // ---------------------------------------------------------------------------
+  // Decode to table
+  // ---------------------------------------------------------------------------
+
+  /// Decode CSV string into a [CsvTable] with headers.
+  CsvTable decodeToTable(String input) {
+    return CsvTable.parse(input, config: config);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Streaming
+  // ---------------------------------------------------------------------------
+
+  /// Streaming decoder for use with `Stream.transform()`.
+  CsvDecoder get decoder => CsvDecoder(config);
+
+  /// Streaming encoder for use with `Stream.transform()`.
+  CsvEncoder get encoder => CsvEncoder(config);
+
+  // ---------------------------------------------------------------------------
+  // dart:convert Codec adapter
+  // ---------------------------------------------------------------------------
+
+  /// Returns a `dart:convert` compatible [Codec] for pipeline use (`.fuse()`).
+  CsvCodecAdapter asCodec() => CsvCodecAdapter(config);
 
   // ---------------------------------------------------------------------------
   // Map conversion
