@@ -46,7 +46,7 @@ Most CSV libraries only do basic parsing. **csv_plus** gives you a complete tool
 
 ```yaml
 dependencies:
-  csv_plus: ^0.0.1
+  csv_plus: ^latest
 ```
 
 ```dart
