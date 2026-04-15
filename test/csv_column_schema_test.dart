@@ -75,10 +75,19 @@ void main() {
         ],
         allowMissingColumns: true,
       );
-      // required column missing is still an error — allowMissingColumns
-      // doesn't override required
+      // allowMissingColumns suppresses missing-column errors
       final errors = schema.validate([], []);
-      expect(errors, hasLength(1));
+      expect(errors, isEmpty);
+
+      // Without the flag, missing required column is an error
+      final strict = CsvSchema(
+        columns: [
+          ColumnDef(name: 'a', required: true),
+        ],
+        allowMissingColumns: false,
+      );
+      final strictErrors = strict.validate([], []);
+      expect(strictErrors, hasLength(1));
     });
 
     test('custom validator integration', () {

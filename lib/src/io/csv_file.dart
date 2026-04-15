@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import '../codec/csv_codec.dart';
@@ -39,7 +40,7 @@ class CsvFile {
   }) {
     return File(path)
         .openRead()
-        .transform(SystemEncoding().decoder)
+        .transform(utf8.decoder)
         .transform(CsvDecoder(config));
   }
 

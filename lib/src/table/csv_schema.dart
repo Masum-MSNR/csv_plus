@@ -62,16 +62,18 @@ class CsvSchema {
     final headerSet = headers.toSet();
     final schemaMap = {for (final c in columns) c.name: c};
 
-    // Check required columns exist
-    for (final col in columns) {
-      if (col.required && !headerSet.contains(col.name)) {
-        errors.add(CsvValidationException(
-          'Missing required column: ${col.name}',
-          columnName: col.name,
-          rowIndex: -1,
-          value: null,
-          constraint: 'required',
-        ));
+    // Check required columns exist (skip when allowMissingColumns is true)
+    if (!allowMissingColumns) {
+      for (final col in columns) {
+        if (col.required && !headerSet.contains(col.name)) {
+          errors.add(CsvValidationException(
+            'Missing required column: ${col.name}',
+            columnName: col.name,
+            rowIndex: -1,
+            value: null,
+            constraint: 'required',
+          ));
+        }
       }
     }
 

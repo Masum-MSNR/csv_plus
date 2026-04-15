@@ -1,6 +1,7 @@
 import 'codec_adapter.dart';
 import '../core/csv_config.dart';
 import '../decoder/csv_decoder.dart';
+import '../decoder/delimiter_detector.dart';
 import '../decoder/fast_decoder.dart';
 import '../encoder/csv_encoder.dart';
 import '../encoder/fast_encoder.dart';
@@ -9,6 +10,7 @@ import '../table/csv_table.dart';
 
 const _fastDecoder = FastDecoder();
 const _fastEncoder = FastEncoder();
+const _detector = DelimiterDetector();
 
 /// Main facade for CSV encoding and decoding.
 ///
@@ -32,17 +34,45 @@ class CsvCodec {
   // Batch decode
   // ---------------------------------------------------------------------------
 
+  /// Resolve config with auto-detected delimiter if [CsvConfig.autoDetect] is
+  /// enabled and the input contains a recognisable delimiter or `sep=` hint.
+  /// Returns (preprocessed input, resolved config).
+  ///
+  /// Auto-detection is skipped when the user has explicitly set a non-default
+  /// field delimiter (anything other than `,`), since that signals intent.
+  (String, CsvConfig) _resolve(String input) {
+    if (!config.autoDetect || config.fieldDelimiter != ',') {
+      return (input, config);
+    }
+
+    final (bomStripped, _) = _detector.stripBom(input);
+    final (remaining, sepDelim) = _detector.checkSepHint(bomStripped);
+
+    if (sepDelim != null) {
+      // sep= hint found — strip that line and use the hinted delimiter
+      return (remaining, config.copyWith(fieldDelimiter: sepDelim));
+    }
+
+    final detected = _detector.detectDelimiter(bomStripped);
+    if (detected != config.fieldDelimiter) {
+      return (input, config.copyWith(fieldDelimiter: detected));
+    }
+    return (input, config);
+  }
+
   /// Decode CSV string to list of rows.
   List<List<dynamic>> decode(String input) {
-    return _fastDecoder.decode(input, config);
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decode(resolved, cfg);
   }
 
   /// Decode with first row as headers. Returns [CsvRow] objects.
   List<CsvRow> decodeWithHeaders(String input) {
-    final withHeader = config.hasHeader
-        ? config
-        : config.copyWith(hasHeader: true);
-    final rawRows = _fastDecoder.decode(input, withHeader);
+    final (resolved, cfg) = _resolve(input);
+    final withHeader = cfg.hasHeader
+        ? cfg
+        : cfg.copyWith(hasHeader: true);
+    final rawRows = _fastDecoder.decode(resolved, withHeader);
 
     // Extract headers from input
     final headerConfig = const CsvConfig(
@@ -50,11 +80,11 @@ class CsvCodec {
       hasHeader: false,
       skipEmptyLines: true,
     ).copyWith(
-      fieldDelimiter: config.fieldDelimiter,
-      quoteCharacter: config.quoteCharacter,
-      escapeCharacter: config.escapeCharacter,
+      fieldDelimiter: cfg.fieldDelimiter,
+      quoteCharacter: cfg.quoteCharacter,
+      escapeCharacter: cfg.escapeCharacter,
     );
-    final allRows = _fastDecoder.decodeStrings(input, headerConfig);
+    final allRows = _fastDecoder.decodeStrings(resolved, headerConfig);
     if (allRows.isEmpty) return [];
 
     final headers = allRows.first;
@@ -68,23 +98,33 @@ class CsvCodec {
 
   /// Decode all fields as strings (no type inference).
   List<List<String>> decodeStrings(String input) {
-    return _fastDecoder.decodeStrings(input, config);
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decodeStrings(resolved, cfg);
   }
 
   /// Decode with lenient parsing: trims whitespace, treats unmatched quotes
   /// as literal characters.
   List<List<dynamic>> decodeFlexible(String input) {
-    return _fastDecoder.decodeFlexible(input, config);
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decodeFlexible(resolved, cfg);
   }
 
   /// Decode all fields as integers.
   List<List<int>> decodeIntegers(String input) {
-    return _fastDecoder.decodeIntegers(input, config);
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decodeIntegers(resolved, cfg);
   }
 
   /// Decode all fields as doubles.
   List<List<double>> decodeDoubles(String input) {
-    return _fastDecoder.decodeDoubles(input, config);
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decodeDoubles(resolved, cfg);
+  }
+
+  /// Decode all fields as booleans (`"true"` \u2192 `true`, everything else \u2192 `false`).
+  List<List<bool>> decodeBooleans(String input) {
+    final (resolved, cfg) = _resolve(input);
+    return _fastDecoder.decodeBooleans(resolved, cfg);
   }
 
   // ---------------------------------------------------------------------------
@@ -99,6 +139,11 @@ class CsvCodec {
   /// Encode all-string data (optimized fast path).
   String encodeStrings(List<List<String>> rows) {
     return _fastEncoder.encodeStrings(rows, config);
+  }
+
+  /// Encode uniform-typed data (no quoting). Ideal for numeric/bool grids.
+  String encodeGeneric<T>(List<List<T>> rows) {
+    return _fastEncoder.encodeGeneric<T>(rows, config);
   }
 
   // ---------------------------------------------------------------------------
