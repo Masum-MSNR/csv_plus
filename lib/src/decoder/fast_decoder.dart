@@ -119,7 +119,7 @@ class FastDecoder {
             value = transform(value, currentRow.length, hdr);
           }
           currentRow.add(value);
-        } else if (_isDelimiterAt(
+        } else if (isDelimiterAt(
             bytes, cursor, singleCharDelim, firstDelim, delimBytes, delimLen,
             len)) {
           // --- Empty field (consecutive delimiter) ---
@@ -145,7 +145,7 @@ class FastDecoder {
               if (afterWord >= len ||
                   bytes[afterWord] == _cr ||
                   bytes[afterWord] == _lf ||
-                  _isDelimiterAt(bytes, afterWord, singleCharDelim, firstDelim,
+                  isDelimiterAt(bytes, afterWord, singleCharDelim, firstDelim,
                       delimBytes, delimLen, len)) {
                 dynamic value = isTrue;
                 cursor += expected;
@@ -168,7 +168,7 @@ class FastDecoder {
             while (cursor < len) {
               final c = bytes[cursor];
               if (c == _cr || c == _lf) break;
-              if (_isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
+              if (isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
                   delimBytes, delimLen, len)) {
                 break;
               }
@@ -226,7 +226,7 @@ class FastDecoder {
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == _cr || c == _lf) break;
-            if (_isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
+            if (isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
                 delimBytes, delimLen, len)) {
               break;
             }
@@ -234,7 +234,7 @@ class FastDecoder {
           }
           dynamic value = input.substring(start, cursor);
           if (dynamicTyping) {
-            value = _inferType(value as String);
+            value = inferType(value as String);
           }
           if (transform != null) {
             final hdr =
@@ -258,7 +258,7 @@ class FastDecoder {
         if (singleCharDelim && next == firstDelim) {
           cursor++;
         } else if (!singleCharDelim &&
-            _matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+            matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
           cursor += delimLen;
         }
         // Continue to read next cell
@@ -316,7 +316,7 @@ class FastDecoder {
             cursor++;
           } else if (!singleCharDelim &&
               ch == firstDelim &&
-              _matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+              matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
             cursor += delimLen;
           }
           if (cursor >= len) break cell_loop;
@@ -360,7 +360,7 @@ class FastDecoder {
             if (singleCharDelim && c == firstDelim) break;
             if (!singleCharDelim &&
                 c == firstDelim &&
-                _matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+                matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
               break;
             }
             cursor++;
@@ -378,7 +378,8 @@ class FastDecoder {
     return rows;
   }
 
-  static bool _matchDelimiter(
+  /// Check if bytes match multi-char delimiter at position.
+  static bool matchDelimiter(
     List<int> bytes,
     int pos,
     List<int> delimBytes,
@@ -392,7 +393,8 @@ class FastDecoder {
     return true;
   }
 
-  static bool _isDelimiterAt(
+  /// Check if current position is a field delimiter.
+  static bool isDelimiterAt(
     List<int> bytes,
     int pos,
     bool singleCharDelim,
@@ -403,156 +405,11 @@ class FastDecoder {
   ) {
     if (singleCharDelim) return bytes[pos] == firstDelim;
     return bytes[pos] == firstDelim &&
-        _matchDelimiter(bytes, pos, delimBytes, delimLen, totalLen);
+        matchDelimiter(bytes, pos, delimBytes, delimLen, totalLen);
   }
 
-  /// Decode with lenient parsing: unquoted strings, whitespace trimming.
-  ///
-  /// Like [decode] but trims leading/trailing whitespace from unquoted fields
-  /// and treats all unmatched quotes as literal characters.
-  List<List<dynamic>> decodeFlexible(String input, CsvConfig config) {
-    if (input.isEmpty) return [];
-
-    final bytes = input.codeUnits;
-    final len = bytes.length;
-    final delimBytes = config.fieldDelimiter.codeUnits;
-    final delimLen = delimBytes.length;
-    final firstDelim = delimBytes[0];
-    final singleCharDelim = delimLen == 1;
-    final quoteCode = config.quoteCharacter.codeUnitAt(0);
-    final escapeCode = config.escapeCharacter.codeUnitAt(0);
-    final skipEmpty = config.skipEmptyLines;
-    final dynamicTyping = config.dynamicTyping;
-
-    final rows = <List<dynamic>>[];
-    var cursor = 0;
-
-    if (len > 0 && bytes[0] == _bom) cursor = 1;
-
-    while (cursor < len) {
-      if (bytes[cursor] == _cr || bytes[cursor] == _lf) {
-        final ch = bytes[cursor];
-        cursor++;
-        if (ch == _cr && cursor < len && bytes[cursor] == _lf) cursor++;
-        if (!skipEmpty) rows.add(<dynamic>[]);
-        continue;
-      }
-
-      final currentRow = <dynamic>[];
-
-      while (true) {
-        if (cursor >= len) {
-          currentRow.add(dynamicTyping ? null : '');
-          break;
-        }
-
-        final ch = bytes[cursor];
-
-        if (ch == _cr || ch == _lf) {
-          currentRow.add(dynamicTyping ? null : '');
-          cursor++;
-          if (ch == _cr && cursor < len && bytes[cursor] == _lf) cursor++;
-          break;
-        }
-
-        if (ch == quoteCode) {
-          // Quoted field — try to parse normally
-          cursor++;
-          final buf = StringBuffer();
-          var closed = false;
-          while (cursor < len) {
-            final c = bytes[cursor];
-            if (c == escapeCode &&
-                cursor + 1 < len &&
-                bytes[cursor + 1] == quoteCode) {
-              buf.writeCharCode(quoteCode);
-              cursor += 2;
-            } else if (c == quoteCode) {
-              cursor++;
-              closed = true;
-              break;
-            } else {
-              buf.writeCharCode(c);
-              cursor++;
-            }
-          }
-          if (!closed) {
-            // Unmatched quote — treat as literal
-            currentRow.add('"${buf.toString()}');
-          } else {
-            currentRow.add(buf.toString());
-          }
-        } else if (_isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
-            delimBytes, delimLen, len)) {
-          currentRow.add(dynamicTyping ? null : '');
-        } else {
-          // Unquoted field — read and trim whitespace
-          final start = cursor;
-          cursor++;
-          while (cursor < len) {
-            final c = bytes[cursor];
-            if (c == _cr || c == _lf) break;
-            if (_isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
-                delimBytes, delimLen, len)) {
-              break;
-            }
-            cursor++;
-          }
-          var value = input.substring(start, cursor).trim();
-          if (dynamicTyping) {
-            currentRow.add(_inferType(value));
-          } else {
-            currentRow.add(value.isEmpty ? null : value);
-          }
-        }
-
-        // Consume separator
-        if (cursor >= len) break;
-        final next = bytes[cursor];
-        if (next == _cr || next == _lf) {
-          cursor++;
-          if (next == _cr && cursor < len && bytes[cursor] == _lf) cursor++;
-          break;
-        }
-        if (singleCharDelim && next == firstDelim) {
-          cursor++;
-        } else if (!singleCharDelim &&
-            _matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
-          cursor += delimLen;
-        }
-      }
-
-      rows.add(currentRow);
-    }
-
-    return rows;
-  }
-
-  /// Decode all fields as integers.
-  List<List<int>> decodeIntegers(String input, CsvConfig config) {
-    final stringRows = decodeStrings(input, config);
-    return stringRows.map((row) {
-      return row.map((s) => s.isEmpty ? 0 : int.parse(s)).toList();
-    }).toList();
-  }
-
-  /// Decode all fields as doubles.
-  List<List<double>> decodeDoubles(String input, CsvConfig config) {
-    final stringRows = decodeStrings(input, config);
-    return stringRows.map((row) {
-      return row.map((s) => s.isEmpty ? 0.0 : double.parse(s)).toList();
-    }).toList();
-  }
-
-  /// Decode all fields as booleans.
-  List<List<bool>> decodeBooleans(String input, CsvConfig config) {
-    final stringRows = decodeStrings(input, config);
-    return stringRows.map((row) {
-      return row.map((s) => s.toLowerCase() == 'true').toList();
-    }).toList();
-  }
-
-  static dynamic _inferType(String value) {
+  /// Infer a dynamic type from a string value.
+  static dynamic inferType(String value) {
     if (value.isEmpty) return null;
     if (value == 'true') return true;
     if (value == 'false') return false;

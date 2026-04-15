@@ -37,6 +37,7 @@ export 'src/encoder/csv_encoder.dart';
 
 // Decoder
 export 'src/decoder/fast_decoder.dart';
+export 'src/decoder/fast_decoder_ext.dart';
 export 'src/decoder/csv_decoder.dart';
 export 'src/decoder/delimiter_detector.dart';
 
@@ -45,5 +46,13 @@ export 'src/table/csv_row.dart';
 export 'src/table/csv_column.dart';
 export 'src/table/csv_schema.dart';
 export 'src/table/csv_table.dart';
+
+// Query
+export 'src/query/filtering.dart';
+export 'src/query/sorting.dart';
+
+// Transform
+export 'src/transform/manipulation.dart';
+export 'src/transform/aggregation.dart';
 
 // I/O (dart:io — import separately: `import 'package:csv_plus/src/io/csv_file.dart';`)

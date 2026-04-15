@@ -3,6 +3,7 @@ import '../core/csv_config.dart';
 import '../decoder/csv_decoder.dart';
 import '../decoder/delimiter_detector.dart';
 import '../decoder/fast_decoder.dart';
+import '../decoder/fast_decoder_ext.dart';
 import '../encoder/csv_encoder.dart';
 import '../encoder/fast_encoder.dart';
 import '../table/csv_row.dart';
