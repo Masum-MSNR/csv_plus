@@ -19,6 +19,7 @@ class CsvCodec {
   /// Configuration for this codec.
   final CsvConfig config;
 
+  /// Create a codec with the given [config] (defaults to standard CSV).
   const CsvCodec([this.config = const CsvConfig()]);
 
   /// Excel-compatible preset: `;` delimiter, UTF-8 BOM.

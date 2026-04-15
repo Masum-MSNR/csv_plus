@@ -1,6 +1,25 @@
 /// Complete, high-performance CSV package for Dart.
 ///
-/// Read, write, stream, manipulate, validate — with maximum speed and type safety.
+/// ```dart
+/// import 'package:csv_plus/csv_plus.dart';
+///
+/// // Encode
+/// final csv = CsvCodec().encode([['name', 'age'], ['Alice', 30]]);
+///
+/// // Decode with type inference
+/// final rows = CsvCodec().decode(csv); // [['name', 'age'], ['Alice', 30]]
+///
+/// // Full table manipulation
+/// final table = CsvTable.parse(csv);
+/// table.sortBy('age');
+/// table.where((row) => row['age'] > 25);
+/// print(table.avg('age'));
+/// ```
+///
+/// For file I/O (dart:io), import separately:
+/// ```dart
+/// import 'package:csv_plus/src/io/csv_file.dart';
+/// ```
 library;
 
 // Core

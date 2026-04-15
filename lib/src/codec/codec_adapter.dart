@@ -16,6 +16,7 @@ import '../encoder/csv_encoder.dart' as csv_enc;
 class CsvCodecAdapter extends Codec<List<List<dynamic>>, String> {
   final CsvConfig config;
 
+  /// Create an adapter with the given [config] (defaults to standard CSV).
   CsvCodecAdapter([this.config = const CsvConfig()]);
 
   @override

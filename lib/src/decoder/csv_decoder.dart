@@ -10,6 +10,7 @@ import '../core/csv_config.dart';
 class CsvDecoder extends StreamTransformerBase<String, List<dynamic>> {
   final CsvConfig config;
 
+  /// Create a streaming decoder with the given [config].
   const CsvDecoder([this.config = const CsvConfig()]);
 
   /// Batch: decode complete CSV string to rows.

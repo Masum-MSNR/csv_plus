@@ -25,6 +25,7 @@ const _falseLength = 5;
 /// - Type inference by first-byte detection
 /// - No `tryParse()` — detects int vs double by scanning for `.`
 class FastDecoder {
+  /// Create a batch decoder instance (stateless, reusable).
   const FastDecoder();
 
   /// Decode CSV string with automatic type inference.

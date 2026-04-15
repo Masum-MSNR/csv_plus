@@ -9,6 +9,7 @@ class CsvColumn {
   /// All values in this column.
   final List<dynamic> values;
 
+  /// Create a column descriptor from [name], [index], and [values].
   CsvColumn({required this.name, required this.index, required this.values});
 
   /// Inferred type of this column based on non-null values.

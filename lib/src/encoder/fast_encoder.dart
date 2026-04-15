@@ -5,6 +5,7 @@ import '../core/quote_mode.dart';
 ///
 /// Thread-safe: no global mutable state.
 class FastEncoder {
+  /// Create a batch encoder instance (stateless, reusable).
   const FastEncoder();
 
   /// Encode rows to CSV string with type-aware quoting.

@@ -1,5 +1,6 @@
 /// Auto-detects field delimiter, BOM, and Excel `sep=` hint from input.
 class DelimiterDetector {
+  /// Create a delimiter detector instance (stateless, reusable).
   const DelimiterDetector();
 
   static const _candidates = [',', ';', '\t', '|'];

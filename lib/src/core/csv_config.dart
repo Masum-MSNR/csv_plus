@@ -41,6 +41,11 @@ class CsvConfig {
   final dynamic Function(dynamic value, int index, String? header)?
       encoderTransform;
 
+  /// Create a CSV configuration.
+  ///
+  /// All parameters have sensible defaults (RFC 4180 compatible).
+  /// Named presets [CsvConfig.excel], [CsvConfig.tsv], [CsvConfig.pipe]
+  /// are available for common formats.
   const CsvConfig({
     this.fieldDelimiter = ',',
     this.lineDelimiter = '\r\n',
@@ -104,7 +109,11 @@ class CsvConfig {
         autoDetect = false,
         escapeCharacter = escapeCharacter ?? quoteCharacter;
 
-  /// Create a modified copy of this config.
+  /// Create a modified copy, overriding only the specified fields.
+  ///
+  /// ```dart
+  /// final tsv = config.copyWith(fieldDelimiter: '\t');
+  /// ```
   CsvConfig copyWith({
     String? fieldDelimiter,
     String? lineDelimiter,

@@ -4,9 +4,17 @@ import '../core/csv_config.dart';
 import '../core/quote_mode.dart';
 
 /// Streaming CSV encoder that transforms rows to CSV string chunks.
+///
+/// Supports three modes via [CsvConfig.quoteMode]:
+/// - [QuoteMode.necessary] — quote only when the field contains delimiters,
+///   newlines, quotes, or leading/trailing whitespace.
+/// - [QuoteMode.always] — unconditionally quote every field.
+/// - [QuoteMode.strings] — quote only [String]-typed fields.
 class CsvEncoder extends StreamTransformerBase<List<dynamic>, String> {
+  /// Configuration for this encoder.
   final CsvConfig config;
 
+  /// Create with the given [config] (defaults to [CsvConfig] defaults).
   const CsvEncoder([this.config = const CsvConfig()]);
 
   /// Batch: encode all rows to a single CSV string.
@@ -132,13 +140,41 @@ class CsvEncoder extends StreamTransformerBase<List<dynamic>, String> {
     }
   }
 
+  /// Check whether [value] must be quoted using codeUnit scanning.
+  ///
+  /// A field needs quoting when it:
+  /// - is empty
+  /// - contains the field delimiter
+  /// - contains CR or LF
+  /// - contains the quote character
+  /// - starts or ends with a space (0x20)
   static bool _needsQuoting(String value, String delim, String quote) {
-    if (value.isEmpty) return true;
-    if (value.contains(delim)) return true;
-    if (value.contains('\n')) return true;
-    if (value.contains('\r')) return true;
-    if (value.contains(quote)) return true;
-    if (value.startsWith(' ') || value.endsWith(' ')) return true;
+    final units = value.codeUnits;
+    final len = units.length;
+    if (len == 0) return true;
+
+    // Leading/trailing spaces
+    if (units[0] == 0x20 || units[len - 1] == 0x20) return true;
+
+    final delimUnits = delim.codeUnits;
+    final delimLen = delimUnits.length;
+    final quoteUnit = quote.codeUnitAt(0);
+
+    for (var i = 0; i < len; i++) {
+      final ch = units[i];
+      if (ch == 0x0A || ch == 0x0D || ch == quoteUnit) return true; // LF, CR, quote
+      // Check for delimiter match (supports multi-char delimiters)
+      if (ch == delimUnits[0] && i + delimLen <= len) {
+        var match = true;
+        for (var d = 1; d < delimLen; d++) {
+          if (units[i + d] != delimUnits[d]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return true;
+      }
+    }
     return false;
   }
 }
