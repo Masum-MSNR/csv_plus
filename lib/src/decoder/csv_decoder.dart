@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import '../core/csv_config.dart';
 
@@ -36,6 +37,11 @@ class CsvDecoder extends StreamTransformerBase<String, List<dynamic>> {
     );
 
     return controller.stream;
+  }
+
+  /// Chunked conversion sink for `dart:convert` pipeline compatibility.
+  Sink<String> startChunkedConversion(Sink<List<dynamic>> sink) {
+    return _CsvDecoderSink(config, sink);
   }
 }
 
@@ -244,6 +250,27 @@ class _StateMachine {
     final asDouble = double.tryParse(raw);
     if (asDouble != null) return asDouble;
     return raw;
+  }
+}
+
+/// Chunked conversion sink for [CsvDecoder].
+class _CsvDecoderSink extends StringConversionSinkBase {
+  final _StateMachine _machine;
+  final Sink<List<dynamic>> _output;
+
+  _CsvDecoderSink(CsvConfig config, this._output)
+      : _machine = _StateMachine(config, _output.add);
+
+  @override
+  void addSlice(String str, int start, int end, bool isLast) {
+    _machine.addChunk(str.substring(start, end));
+    if (isLast) close();
+  }
+
+  @override
+  void close() {
+    _machine.finish();
+    _output.close();
   }
 }
 

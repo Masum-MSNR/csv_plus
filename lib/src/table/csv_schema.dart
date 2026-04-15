@@ -17,6 +17,42 @@ class CsvSchema {
     this.allowMissingColumns = false,
   });
 
+  /// Infer a schema from observed headers and data.
+  ///
+  /// Detects column types, nullability, and required status from actual values.
+  factory CsvSchema.infer(List<String> headers, List<List<dynamic>> rows) {
+    final columns = <ColumnDef>[];
+    for (var c = 0; c < headers.length; c++) {
+      Type? common;
+      var hasNull = false;
+      var allNull = true;
+
+      for (final row in rows) {
+        final v = c < row.length ? row[c] : null;
+        if (v == null) {
+          hasNull = true;
+          continue;
+        }
+        allNull = false;
+        final t = v.runtimeType;
+        if (common == null) {
+          common = t;
+        } else if (common != t) {
+          common = null;
+          break;
+        }
+      }
+
+      columns.add(ColumnDef(
+        name: headers[c],
+        type: allNull ? null : common,
+        required: true,
+        nullable: hasNull,
+      ));
+    }
+    return CsvSchema(columns: columns);
+  }
+
   /// Validate rows against this schema. Returns list of violations.
   List<CsvValidationException> validate(
     List<String> headers,

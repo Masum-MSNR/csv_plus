@@ -71,6 +71,22 @@ class CsvCodec {
     return _fastDecoder.decodeStrings(input, config);
   }
 
+  /// Decode with lenient parsing: trims whitespace, treats unmatched quotes
+  /// as literal characters.
+  List<List<dynamic>> decodeFlexible(String input) {
+    return _fastDecoder.decodeFlexible(input, config);
+  }
+
+  /// Decode all fields as integers.
+  List<List<int>> decodeIntegers(String input) {
+    return _fastDecoder.decodeIntegers(input, config);
+  }
+
+  /// Decode all fields as doubles.
+  List<List<double>> decodeDoubles(String input) {
+    return _fastDecoder.decodeDoubles(input, config);
+  }
+
   // ---------------------------------------------------------------------------
   // Batch encode
   // ---------------------------------------------------------------------------

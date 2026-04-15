@@ -77,6 +77,11 @@ class CsvEncoder extends StreamTransformerBase<List<dynamic>, String> {
     return controller.stream;
   }
 
+  /// Chunked conversion sink for `dart:convert` pipeline compatibility.
+  Sink<List<dynamic>> startChunkedConversion(Sink<String> sink) {
+    return _CsvEncoderSink(config, sink);
+  }
+
   /// Encode a single field to a properly quoted string.
   static String encodeField(
     dynamic field, {
@@ -135,5 +140,44 @@ class CsvEncoder extends StreamTransformerBase<List<dynamic>, String> {
     if (value.contains(quote)) return true;
     if (value.startsWith(' ') || value.endsWith(' ')) return true;
     return false;
+  }
+}
+
+/// Chunked conversion sink for [CsvEncoder].
+class _CsvEncoderSink implements Sink<List<dynamic>> {
+  final CsvConfig _config;
+  final Sink<String> _output;
+  var _first = true;
+
+  _CsvEncoderSink(this._config, this._output);
+
+  @override
+  void add(List<dynamic> row) {
+    final buf = StringBuffer();
+    if (_first && _config.addBom) {
+      buf.writeCharCode(0xFEFF);
+      _first = false;
+    } else if (!_first) {
+      buf.write(_config.lineDelimiter);
+    } else {
+      _first = false;
+    }
+
+    for (var c = 0; c < row.length; c++) {
+      if (c > 0) buf.write(_config.fieldDelimiter);
+      var cell = row[c];
+      if (_config.encoderTransform != null) {
+        cell = _config.encoderTransform!(cell, c, null);
+      }
+      CsvEncoder._writeCell(buf, cell, _config.fieldDelimiter,
+          _config.quoteCharacter, _config.escapeCharacter, _config.quoteMode);
+    }
+
+    _output.add(buf.toString());
+  }
+
+  @override
+  void close() {
+    _output.close();
   }
 }

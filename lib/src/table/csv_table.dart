@@ -77,6 +77,20 @@ class CsvTable {
 
   bool get isNotEmpty => _data.isNotEmpty;
 
+  /// Iterate over rows as [CsvRow].
+  Iterator<CsvRow> get iterator {
+    final headerMap = _buildHeaderMap();
+    return _data.map((r) => CsvRow(r, headerMap)).iterator;
+  }
+
+  /// Infer a [CsvSchema] from the table's headers and data.
+  CsvSchema inferSchema() {
+    if (!hasHeaders) {
+      throw CsvException('Cannot infer schema without headers');
+    }
+    return CsvSchema.infer(_headers, _data);
+  }
+
   // --- Row Access ---
 
   /// Get row by index as [CsvRow].
