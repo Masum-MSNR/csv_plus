@@ -14,8 +14,12 @@ const _lowerT = 116; // t
 const _plus = 43; // +
 const _bom = 0xFEFF;
 
-const _trueLength = 4;
-const _falseLength = 5;
+// 'true' / 'false' byte sequences
+const _lowerR = 114;
+const _lowerU = 117;
+const _lowerA = 97;
+const _lowerL = 108;
+const _lowerS = 115;
 
 /// High-performance batch CSV decoder using byte-level (`codeUnits`) parsing.
 ///
@@ -23,18 +27,13 @@ const _falseLength = 5;
 /// - Direct codeUnit array indexing (no string ops in hot loop)
 /// - Labeled loop control flow (`outerLoop`, `cell_loop`)
 /// - Type inference by first-byte detection
-/// - No `tryParse()` — detects int vs double by scanning for `.`
+/// - substring + replaceRange for quoted fields (avoids StringBuffer)
+/// - Row pre-sizing after first row for fewer allocations
 class FastDecoder {
   /// Create a batch decoder instance (stateless, reusable).
   const FastDecoder();
 
   /// Decode CSV string with automatic type inference.
-  ///
-  /// Type detection by first byte:
-  /// - `"` → quoted string
-  /// - `t`/`f` → boolean
-  /// - digit/`-` → int or double
-  /// - delimiter/newline → null
   List<List<dynamic>> decode(String input, CsvConfig config) {
     if (input.isEmpty) return [];
 
@@ -50,10 +49,12 @@ class FastDecoder {
     final dynamicTyping = config.dynamicTyping;
     final transform = config.decoderTransform;
     final hasHeader = config.hasHeader;
+    final hasTransform = transform != null;
 
     final rows = <List<dynamic>>[];
     List<String>? headers;
     var cursor = 0;
+    var colCount = -1;
 
     // Strip BOM
     if (len > 0 && bytes[0] == _bom) cursor = 1;
@@ -69,94 +70,133 @@ class FastDecoder {
         continue outerLoop;
       }
 
-      final currentRow = <dynamic>[];
+      final currentRow =
+          colCount > 0 ? List<dynamic>.generate(colCount, (_) => null, growable: true) : <dynamic>[];
+      var cellIdx = 0;
 
       // Read cells in this row
       while (true) {
-        // --- Read one cell ---
         if (cursor >= len) {
-          // Trailing delimiter at end of input → empty field
-          currentRow.add(dynamicTyping ? null : '');
+          _addCell(currentRow, cellIdx, colCount, dynamicTyping ? null : '');
+          cellIdx++;
           break;
         }
 
         final ch = bytes[cursor];
 
         if (ch == _cr || ch == _lf) {
-          // Trailing delimiter before newline → empty field
-          currentRow.add(dynamicTyping ? null : '');
+          _addCell(currentRow, cellIdx, colCount, dynamicTyping ? null : '');
+          cellIdx++;
           cursor++;
           if (ch == _cr && cursor < len && bytes[cursor] == _lf) cursor++;
           break;
         }
 
         if (ch == quoteCode) {
-          // --- Quoted string ---
+          // --- Quoted string: substring approach ---
           cursor++;
-          final buf = StringBuffer();
+          final start = cursor;
+          List<int>? escapePositions;
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == escapeCode &&
                 cursor + 1 < len &&
                 bytes[cursor + 1] == quoteCode) {
-              buf.writeCharCode(quoteCode);
+              (escapePositions ??= []).add(cursor - start);
               cursor += 2;
             } else if (c == quoteCode) {
               cursor++;
               break;
             } else {
-              buf.writeCharCode(c);
               cursor++;
             }
           }
-
-          dynamic value = buf.toString();
-          if (transform != null) {
-            final hdr =
-                (headers != null && currentRow.length < headers.length)
-                    ? headers[currentRow.length]
-                    : null;
-            value = transform(value, currentRow.length, hdr);
+          String value = input.substring(start, cursor - 1);
+          if (escapePositions != null) {
+            for (var i = escapePositions.length - 1; i >= 0; i--) {
+              value = value.replaceRange(
+                  escapePositions[i], escapePositions[i] + 1, '');
+            }
           }
-          currentRow.add(value);
-        } else if (isDelimiterAt(
-            bytes, cursor, singleCharDelim, firstDelim, delimBytes, delimLen,
-            len)) {
+          dynamic cell = value;
+          if (hasTransform) {
+            final hdr =
+                (headers != null && cellIdx < headers.length)
+                    ? headers[cellIdx]
+                    : null;
+            cell = transform(cell, cellIdx, hdr);
+          }
+          _addCell(currentRow, cellIdx, colCount, cell);
+          cellIdx++;
+        } else if (singleCharDelim
+            ? ch == firstDelim
+            : _matchDelim(bytes, cursor, delimBytes, delimLen, len)) {
           // --- Empty field (consecutive delimiter) ---
-          dynamic value = dynamicTyping ? null : '';
-          if (transform != null) {
+          dynamic cell = dynamicTyping ? null : '';
+          if (hasTransform) {
             final hdr =
-                (headers != null && currentRow.length < headers.length)
-                    ? headers[currentRow.length]
+                (headers != null && cellIdx < headers.length)
+                    ? headers[cellIdx]
                     : null;
-            value = transform(value, currentRow.length, hdr);
+            cell = transform(cell, cellIdx, hdr);
           }
-          currentRow.add(value);
-          // Don't advance cursor — the separator consumer below will eat it
+          _addCell(currentRow, cellIdx, colCount, cell);
+          cellIdx++;
         } else if (dynamicTyping && (ch == _lowerT || ch == _lowerF)) {
-          // --- Try boolean ---
-          final isTrue = ch == _lowerT;
-          final expected = isTrue ? _trueLength : _falseLength;
+          // --- Try boolean by individual byte check ---
           var matched = false;
-          if (cursor + expected <= len) {
-            final word = input.substring(cursor, cursor + expected);
-            if ((isTrue && word == 'true') || (!isTrue && word == 'false')) {
-              final afterWord = cursor + expected;
-              if (afterWord >= len ||
-                  bytes[afterWord] == _cr ||
-                  bytes[afterWord] == _lf ||
-                  isDelimiterAt(bytes, afterWord, singleCharDelim, firstDelim,
-                      delimBytes, delimLen, len)) {
-                dynamic value = isTrue;
-                cursor += expected;
-                if (transform != null) {
+          if (ch == _lowerT) {
+            if (cursor + 4 <= len &&
+                bytes[cursor + 1] == _lowerR &&
+                bytes[cursor + 2] == _lowerU &&
+                bytes[cursor + 3] == _lowerE) {
+              final after = cursor + 4;
+              if (after >= len ||
+                  bytes[after] == _cr ||
+                  bytes[after] == _lf ||
+                  (singleCharDelim
+                      ? bytes[after] == firstDelim
+                      : _matchDelim(
+                          bytes, after, delimBytes, delimLen, len))) {
+                dynamic cell = true;
+                cursor += 4;
+                if (hasTransform) {
                   final hdr =
-                      (headers != null && currentRow.length < headers.length)
-                          ? headers[currentRow.length]
+                      (headers != null && cellIdx < headers.length)
+                          ? headers[cellIdx]
                           : null;
-                  value = transform(value, currentRow.length, hdr);
+                  cell = transform(cell, cellIdx, hdr);
                 }
-                currentRow.add(value);
+                _addCell(currentRow, cellIdx, colCount, cell);
+                cellIdx++;
+                matched = true;
+              }
+            }
+          } else {
+            if (cursor + 5 <= len &&
+                bytes[cursor + 1] == _lowerA &&
+                bytes[cursor + 2] == _lowerL &&
+                bytes[cursor + 3] == _lowerS &&
+                bytes[cursor + 4] == _lowerE) {
+              final after = cursor + 5;
+              if (after >= len ||
+                  bytes[after] == _cr ||
+                  bytes[after] == _lf ||
+                  (singleCharDelim
+                      ? bytes[after] == firstDelim
+                      : _matchDelim(
+                          bytes, after, delimBytes, delimLen, len))) {
+                dynamic cell = false;
+                cursor += 5;
+                if (hasTransform) {
+                  final hdr =
+                      (headers != null && cellIdx < headers.length)
+                          ? headers[cellIdx]
+                          : null;
+                  cell = transform(cell, cellIdx, hdr);
+                }
+                _addCell(currentRow, cellIdx, colCount, cell);
+                cellIdx++;
                 matched = true;
               }
             }
@@ -168,21 +208,23 @@ class FastDecoder {
             while (cursor < len) {
               final c = bytes[cursor];
               if (c == _cr || c == _lf) break;
-              if (isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
-                  delimBytes, delimLen, len)) {
+              if (singleCharDelim
+                  ? c == firstDelim
+                  : _matchDelim(bytes, cursor, delimBytes, delimLen, len)) {
                 break;
               }
               cursor++;
             }
-            dynamic value = input.substring(start, cursor);
-            if (transform != null) {
+            dynamic cell = input.substring(start, cursor);
+            if (hasTransform) {
               final hdr =
-                  (headers != null && currentRow.length < headers.length)
-                      ? headers[currentRow.length]
+                  (headers != null && cellIdx < headers.length)
+                      ? headers[cellIdx]
                       : null;
-              value = transform(value, currentRow.length, hdr);
+              cell = transform(cell, cellIdx, hdr);
             }
-            currentRow.add(value);
+            _addCell(currentRow, cellIdx, colCount, cell);
+            cellIdx++;
           }
         } else if (dynamicTyping &&
             (ch == _minus || (ch >= _zero && ch <= _nine))) {
@@ -205,20 +247,21 @@ class FastDecoder {
           }
 
           final numStr = input.substring(start, cursor);
-          dynamic value;
+          dynamic cell;
           if (isDouble) {
-            value = double.tryParse(numStr) ?? numStr;
+            cell = double.tryParse(numStr) ?? numStr;
           } else {
-            value = int.tryParse(numStr) ?? numStr;
+            cell = int.tryParse(numStr) ?? numStr;
           }
-          if (transform != null) {
+          if (hasTransform) {
             final hdr =
-                (headers != null && currentRow.length < headers.length)
-                    ? headers[currentRow.length]
+                (headers != null && cellIdx < headers.length)
+                    ? headers[cellIdx]
                     : null;
-            value = transform(value, currentRow.length, hdr);
+            cell = transform(cell, cellIdx, hdr);
           }
-          currentRow.add(value);
+          _addCell(currentRow, cellIdx, colCount, cell);
+          cellIdx++;
         } else {
           // --- Unquoted string ---
           final start = cursor;
@@ -226,51 +269,58 @@ class FastDecoder {
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == _cr || c == _lf) break;
-            if (isDelimiterAt(bytes, cursor, singleCharDelim, firstDelim,
-                delimBytes, delimLen, len)) {
+            if (singleCharDelim
+                ? c == firstDelim
+                : _matchDelim(bytes, cursor, delimBytes, delimLen, len)) {
               break;
             }
             cursor++;
           }
-          dynamic value = input.substring(start, cursor);
+          dynamic cell = input.substring(start, cursor);
           if (dynamicTyping) {
-            value = inferType(value as String);
+            cell = inferType(cell as String);
           }
-          if (transform != null) {
+          if (hasTransform) {
             final hdr =
-                (headers != null && currentRow.length < headers.length)
-                    ? headers[currentRow.length]
+                (headers != null && cellIdx < headers.length)
+                    ? headers[cellIdx]
                     : null;
-            value = transform(value, currentRow.length, hdr);
+            cell = transform(cell, cellIdx, hdr);
           }
-          currentRow.add(value);
+          _addCell(currentRow, cellIdx, colCount, cell);
+          cellIdx++;
         }
 
         // --- After cell: consume separator or end row ---
-        if (cursor >= len) break; // end of input → end of row
+        if (cursor >= len) break;
         final next = bytes[cursor];
         if (next == _cr || next == _lf) {
           cursor++;
           if (next == _cr && cursor < len && bytes[cursor] == _lf) cursor++;
-          break; // end of row
+          break;
         }
-        // Consume field delimiter
         if (singleCharDelim && next == firstDelim) {
           cursor++;
         } else if (!singleCharDelim &&
-            matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+            _matchDelim(bytes, cursor, delimBytes, delimLen, len)) {
           cursor += delimLen;
         }
-        // Continue to read next cell
       }
 
-      // Finalize row
+      // Trim pre-sized row if fewer cells than expected
+      final row =
+          (colCount > 0 && cellIdx < colCount)
+              ? currentRow.sublist(0, cellIdx)
+              : currentRow;
+
       if (hasHeader && headers == null) {
-        headers = currentRow.map((e) => e?.toString() ?? '').toList();
+        headers = row.map((e) => e?.toString() ?? '').toList();
+        colCount = headers.length;
         continue;
       }
 
-      rows.add(currentRow);
+      if (colCount < 0) colCount = cellIdx;
+      rows.add(row);
     }
 
     return rows;
@@ -292,11 +342,16 @@ class FastDecoder {
 
     final rows = <List<String>>[];
     var cursor = 0;
+    var colCount = -1;
+    var isEmpty = true;
 
     if (len > 0 && bytes[0] == _bom) cursor = 1;
 
     while (cursor < len) {
-      final currentRow = <String>[];
+      final currentRow =
+          colCount > 0 ? List<String>.generate(colCount, (_) => '', growable: true) : <String>[];
+      var cellIdx = 0;
+      isEmpty = true;
 
       cell_loop:
       while (true) {
@@ -310,72 +365,106 @@ class FastDecoder {
           break cell_loop;
         }
 
-        // Skip field delimiter between cells
-        if (currentRow.isNotEmpty) {
+        // Consume field delimiter between cells
+        if (cellIdx > 0) {
           if (singleCharDelim && ch == firstDelim) {
             cursor++;
           } else if (!singleCharDelim &&
               ch == firstDelim &&
-              matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+              _matchDelim(bytes, cursor, delimBytes, delimLen, len)) {
             cursor += delimLen;
           }
           if (cursor >= len) break cell_loop;
         }
 
-        // Re-read char after possible delimiter skip
         final cellStart = bytes[cursor];
 
         if (cellStart == quoteCode) {
+          // --- Quoted field: substring approach ---
           cursor++;
-          final buf = StringBuffer();
+          final start = cursor;
+          List<int>? escapePositions;
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == escapeCode &&
                 cursor + 1 < len &&
                 bytes[cursor + 1] == quoteCode) {
-              buf.writeCharCode(quoteCode);
+              (escapePositions ??= []).add(cursor - start);
               cursor += 2;
             } else if (c == quoteCode) {
               cursor++;
               break;
             } else {
-              buf.writeCharCode(c);
               cursor++;
             }
           }
-          currentRow.add(buf.toString());
+          String value = input.substring(start, cursor - 1);
+          if (escapePositions != null) {
+            for (var i = escapePositions.length - 1; i >= 0; i--) {
+              value = value.replaceRange(
+                  escapePositions[i], escapePositions[i] + 1, '');
+            }
+          }
+          if (isEmpty && value.isNotEmpty) isEmpty = false;
+          _addStr(currentRow, cellIdx, colCount, value);
+          cellIdx++;
         } else if (cellStart == _cr || cellStart == _lf) {
-          // Empty line after delimiter skip shouldn't happen, but handle it
           cursor++;
           if (cellStart == _cr && cursor < len && bytes[cursor] == _lf) {
             cursor++;
           }
           break cell_loop;
         } else {
-          // Unquoted field
+          // --- Unquoted field ---
           final start = cursor;
           while (cursor < len) {
             final c = bytes[cursor];
             if (c == _cr || c == _lf) break;
-            if (singleCharDelim && c == firstDelim) break;
-            if (!singleCharDelim &&
-                c == firstDelim &&
-                matchDelimiter(bytes, cursor, delimBytes, delimLen, len)) {
+            if (singleCharDelim
+                ? c == firstDelim
+                : (c == firstDelim &&
+                    _matchDelim(bytes, cursor, delimBytes, delimLen, len))) {
               break;
             }
             cursor++;
           }
-          currentRow.add(input.substring(start, cursor));
+          final value = input.substring(start, cursor);
+          if (isEmpty && value.isNotEmpty) isEmpty = false;
+          _addStr(currentRow, cellIdx, colCount, value);
+          cellIdx++;
         }
 
         continue cell_loop;
       }
 
-      if (skipEmpty && currentRow.every((s) => s.isEmpty)) continue;
-      rows.add(currentRow);
+      if (skipEmpty && isEmpty) continue;
+
+      final row =
+          (colCount > 0 && cellIdx < colCount)
+              ? currentRow.sublist(0, cellIdx)
+              : currentRow;
+
+      if (colCount < 0) colCount = cellIdx;
+      rows.add(row);
     }
 
     return rows;
+  }
+
+  // --- Helpers (static for inlining) ---
+
+  static bool _matchDelim(
+    List<int> bytes,
+    int pos,
+    List<int> delimBytes,
+    int delimLen,
+    int totalLen,
+  ) {
+    if (pos + delimLen > totalLen) return false;
+    for (var i = 0; i < delimLen; i++) {
+      if (bytes[pos + i] != delimBytes[i]) return false;
+    }
+    return true;
   }
 
   /// Check if bytes match multi-char delimiter at position.
@@ -385,13 +474,8 @@ class FastDecoder {
     List<int> delimBytes,
     int delimLen,
     int totalLen,
-  ) {
-    if (pos + delimLen > totalLen) return false;
-    for (var i = 1; i < delimLen; i++) {
-      if (bytes[pos + i] != delimBytes[i]) return false;
-    }
-    return true;
-  }
+  ) =>
+      _matchDelim(bytes, pos, delimBytes, delimLen, totalLen);
 
   /// Check if current position is a field delimiter.
   static bool isDelimiterAt(
@@ -405,7 +489,7 @@ class FastDecoder {
   ) {
     if (singleCharDelim) return bytes[pos] == firstDelim;
     return bytes[pos] == firstDelim &&
-        matchDelimiter(bytes, pos, delimBytes, delimLen, totalLen);
+        _matchDelim(bytes, pos, delimBytes, delimLen, totalLen);
   }
 
   /// Infer a dynamic type from a string value.
@@ -414,7 +498,6 @@ class FastDecoder {
     if (value == 'true') return true;
     if (value == 'false') return false;
 
-    // Try int first (no dot, no e/E)
     final bytes = value.codeUnits;
     var hasDot = false;
     var hasExp = false;
@@ -448,5 +531,23 @@ class FastDecoder {
     }
 
     return value;
+  }
+
+  // Add cell to pre-sized or growing row
+  static void _addCell(
+      List<dynamic> row, int idx, int colCount, dynamic value) {
+    if (colCount > 0 && idx < colCount) {
+      row[idx] = value;
+    } else {
+      row.add(value);
+    }
+  }
+
+  static void _addStr(List<String> row, int idx, int colCount, String value) {
+    if (colCount > 0 && idx < colCount) {
+      row[idx] = value;
+    } else {
+      row.add(value);
+    }
   }
 }
